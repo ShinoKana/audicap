@@ -1,0 +1,19 @@
+# 白名单:默认全部忽略,只收下面列出的。
+# 目录里还有日志、测试素材、
+# 旧版备份和二进制,都不该进仓库。新加源文件时记得在这里放行。
+/*
+!/.gitignore
+!/README.md
+!/README.zh.md
+!/LICENSE
+!/AudicapApp.swift
+!/CloudCorrect.swift
+!/Recognizer.swift
+!/Refine.swift
+!/main.swift
+!/speechprobe.swift
+!/deploy.sh
+!/release.sh
+!/AppIcon.icns
+!/bundle/
+!/tests/
