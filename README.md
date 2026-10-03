@@ -99,6 +99,12 @@ Based on public docs and repos; details may have changed.
 - **Repeated permission prompts**: Audicap stops retrying capture once it detects permission is missing (retrying would just reprompt indefinitely without succeeding, since macOS only applies a permission change on relaunch). Grant the permission, then relaunch the app.
 - **Logs**: the menu has a "Show log file" item. Logs are written to `~/Library/Logs/Audicap/audicap.log`.
 
+## Reporting bugs and feedback
+
+Bug reports and feedback are welcome — especially "it didn't work on my Mac", since so far it has only been tested on one machine. Please [open an issue](../../issues/new/choose) with your macOS version, Mac model, the recognition-language setting, and the permission status shown in the menu-bar menu. Reports about languages other than Japanese/English/Chinese in real use are particularly useful.
+
+If you attach the log (menu-bar menu → "Show log file"), read it first: it can contain fragments of what was said. Paste only the relevant lines and remove anything private.
+
 ## Build from source
 
 Requires macOS 26 and Xcode Command Line Tools (SDK 26+).
