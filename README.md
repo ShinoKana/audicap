@@ -1,37 +1,70 @@
 # Audicap
 
-**Live captions for anything your Mac is playing — Zoom, Google Meet, Teams, YouTube — recognized on-device, with automatic per-sentence switching between up to 5 languages.** macOS 26+.
+Audicap is a free, open-source (MIT) macOS menu-bar app that shows live captions for whatever your Mac is playing — Zoom, Google Meet, Teams, YouTube, or any other app — using on-device speech recognition (Apple's `SpeechAnalyzer`), with automatic per-sentence language switching for mixed-language meetings. Requires macOS 26+ on Apple Silicon.
+
+- **What**: a menu-bar app that captures your Mac's system audio and overlays live captions, recognized on-device, switching languages sentence by sentence.
+- **For whom**: people in meetings or videos that mix languages (e.g. Japanese/English/Chinese) or have accented speech, who want captions without a meeting bot joining the call.
+- **Requirements**: macOS 26 or later, Apple Silicon.
 
 [中文说明](README.zh.md)
 
-Audicap listens to your Mac's system audio (no virtual audio driver, no meeting bot), transcribes it with Apple's on-device `SpeechAnalyzer`, and shows the text in a floating transparent overlay. Other meeting participants see nothing. It was built for multilingual meetings where people switch between Japanese, English and Chinese — often with strong accents — and keeps a transcript and audio you can process into a full, speaker-labeled record afterwards.
+Audicap listens to your Mac's system audio (no virtual audio driver, no meeting bot) and shows the text in a floating transparent overlay; other meeting participants see nothing. It keeps a transcript and audio file per meeting, which you can optionally process into a full, speaker-labeled record afterwards.
 
-## Common questions
+## Who it's for
 
-**Is there a free Mac app that shows live captions for Zoom / Meet / Teams without joining as a bot?**
-Yes — that is what Audicap does. It captures system audio with ScreenCaptureKit, so it works with any app and nothing joins the call.
+Use Audicap if your meetings mix languages — for example Japanese, English and Chinese in the same call, or accented English — and you want live captions without adding a bot to the meeting.
 
-**Can it handle a meeting that switches languages mid-conversation?**
-Yes. In Auto mode it runs one recognizer per selected language in parallel (up to 5, an Apple limit) and picks the best result **for every sentence**, so a meeting can move between Japanese, English and Chinese without changing settings. Most caption tools ask you to pick one language per session.
+If your meeting is in a single language, two more polished options already exist: macOS's built-in Live Captions, or [livesub-macos (JaSub)](https://github.com/ultima6-tw/livesub-macos), which also has more refined translation output. If what you actually need is cloud meeting notes or summaries rather than live captions, Otter or Granola are a different kind of tool — see the comparison table below.
 
-**Does my audio leave my Mac?**
-Not by default. Recognition and translation run on-device. Two features are optional and send audio to the cloud: live correction (Gemini via OpenRouter) and the post-meeting full transcript. The post-meeting step asks for confirmation every time.
+## Install (prebuilt)
 
-**Does it work on Windows or Linux?**
-No. Capture (ScreenCaptureKit) and recognition (`SpeechAnalyzer`, macOS 26) are Apple-only; a port would mean replacing both layers.
+1. Download the zip from the [GitHub Releases page](../../releases), unzip it, and move `Audicap.app` to `/Applications`.
+2. **First launch**: this build is not notarized, so macOS will block it. Either right-click the app → Open, or go to System Settings → Privacy & Security → "Open Anyway". Alternatively, clear the quarantine flag yourself:
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Audicap.app
+   ```
+3. Grant **Screen Recording** when asked (and **Microphone** if you enable it). Quit and reopen the app after granting — macOS only applies the permission on relaunch, not immediately. The menu-bar icon's menu shows current permission status and has a "Check permissions…" item if you need to jump back to System Settings.
+   Note: because this build is ad-hoc signed (no paid Apple Developer certificate), its signature identity changes with every release. **After updating**, if captions stay empty: System Settings → Privacy & Security → Screen Recording, remove the old Audicap entry, reopen Audicap, grant again, then quit and reopen once more (macOS applies the change on relaunch).
+4. **Requirements**: macOS 26+, Apple Silicon. This is the only configuration tested so far — Intel Macs are untested.
+
+**Recording consent**: Audicap will transcribe whatever audio it captures, including other people's voices in a call. You are responsible for getting consent where the law requires it before recording or transcribing a conversation.
+
+**License**: MIT.
+
+## Languages
+
+11 selectable languages: Japanese, English, Mandarin (Simplified), Mandarin (Traditional), Cantonese, Korean, French, German, Spanish, Italian, Portuguese.
+
+Pick one language, or in Auto mode pick up to 5 at once — Apple limits each app to 5 reserved language models at a time (`AssetInventory.maximumReservedLocales`). In Auto mode each selected language runs its own recognizer in parallel, and the result is chosen per sentence by confidence (see Features below). The default Auto set is Japanese + English + Mandarin (Simplified).
+
+**Testing status**: Japanese, English and Mandarin (Simplified) have been tested on real meetings. The other 8 languages have only been tested with synthetic speech — in those tests they recognized correctly and did not steal results away from the ja/en/zh lanes, but they have not yet been tried on a real meeting. Accented speech is the hardest case for language arbitration (see Limitations); if a meeting is in English only, choose English alone rather than Auto mode.
 
 ## Features
 
 - **System-audio captions** in a borderless, draggable overlay; at most 4 lines by default (wrapped lines and translations count).
-- **11 selectable languages**: Japanese, English, Mandarin (Simplified / Traditional), Cantonese, Korean, French, German, Spanish, Italian, Portuguese. Pick one, or pick up to 5 for Auto mode.
 - **Per-sentence language arbitration**: each language lane scores its result; the winner is chosen by confidence, with a penalty when a lane's output is in the wrong writing system (kana / Han / Hangul / Latin). If the best candidate is still unsure (< 0.80) and some lanes haven't answered, it waits up to 2 s longer — one lane often ends a sentence ~1.8 s earlier than the others.
 - **On-device translation** (Apple Translation framework), shown under the original in a second color and excluded from copy.
 - **Optional live cloud correction**: sentence-bounded 4–20 s chunks + their audio go to `gemini-2.5-flash-lite` via OpenRouter (~$0.01/hour). A language hint is sent only when every sentence in the chunk agrees and is ≥ 0.85 confident; otherwise the model transcribes what it hears.
 - **Optional microphone lane**: your own voice goes to the transcript only, not the overlay. Bound to the built-in mic so Bluetooth headphones don't drop into call-quality mode.
 - **Transcript panel** that updates in place; select-to-copy; timestamps stripped on copy.
 - **Archive per meeting**: `.txt` (raw recognition, append-only), `.md` (final text, corrected lines marked ✎), `.wav` (16 kHz mono).
-- **Post-meeting processing (optional)**: when you stop a recording longer than 5 minutes, Audicap asks whether to run an external script that produces a full transcript and speaker labels. The script is not in this repo; see below.
+- **Post-meeting processing (optional)**: when you stop a recording longer than 5 minutes, Audicap asks whether to run an external script that produces a full transcript and speaker labels. The script is not in this repo; see Limitations below.
+- **Menu-bar status menu**: shows current state, Screen Recording and Microphone permission status, a "Check permissions…" item, and a "Show log file" item.
 - Global hotkey `⌥⌘A` to start/stop.
+
+## Common questions
+
+**Is there a free Mac app for live captions in Zoom without a meeting bot?**
+Yes — that is what Audicap does. It captures system audio with ScreenCaptureKit, so it works with any app, and nothing joins the call as a participant.
+
+**Can it caption a meeting that switches between Japanese, English and Chinese?**
+Yes. In Auto mode it runs one recognizer per selected language in parallel (up to 5, an Apple limit) and picks the best result for every sentence, so a meeting can move between languages without changing settings.
+
+**Does it work offline / does audio leave my Mac?**
+Recognition and translation run on-device by default. Two optional features send audio to the cloud: live correction (Gemini via OpenRouter) and the post-meeting full transcript; the post-meeting step asks for confirmation every time.
+
+**Does it work on Windows, Linux or iPhone?**
+No to all three. Capture (ScreenCaptureKit) and recognition (`SpeechAnalyzer`, macOS 26) are Apple desktop-only APIs. It also can't become an iPhone app: iOS doesn't let an app capture another app's audio, which is what this relies on.
 
 ## How it compares (as of September 2026)
 
@@ -59,20 +92,12 @@ Based on public docs and repos; details may have changed.
 - The `.wav` archive contains system audio only; the microphone lane is recognized but not recorded.
 - Where recordings are saved is set in Settings → Transcript (default `~/Documents/Audicap`). The post-meeting script is external (default `~/whisper-job/_pipeline/audicap_post.sh`, receives the folder via `AUDICAP_DIR`); the feature is skipped if the script is missing.
 
-## Install (prebuilt)
+## Troubleshooting
 
-1. Download the zip from the [GitHub Releases page](../../releases), unzip it, and move `Audicap.app` to `/Applications`.
-2. **First launch**: this build is not notarized, so macOS will block it. Either right-click the app → Open, or go to System Settings → Privacy & Security → "Open Anyway". Alternatively, clear the quarantine flag yourself:
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/Audicap.app
-   ```
-3. Grant **Screen Recording** when asked (and **Microphone** if you enable it). Quit and reopen the app after granting — macOS only applies the permission on relaunch, not immediately. The menu-bar icon's menu shows current permission status and has a "Check permissions…" item if you need to jump back to System Settings.
-   Note: because this build is ad-hoc signed (no paid Apple Developer certificate), its signature identity changes with every release. **After updating**, if captions stay empty: System Settings → Privacy & Security → Screen Recording, remove the old Audicap entry, reopen Audicap, grant again, then quit and reopen once more (macOS applies the change on relaunch).
-4. **Requirements**: macOS 26+, Apple Silicon. This is the only configuration tested so far — Intel Macs are untested.
-
-**Recording consent**: Audicap will transcribe whatever audio it captures, including other people's voices in a call. You are responsible for getting consent where the law requires it before recording or transcribing a conversation.
-
-**License**: MIT.
+- **Captions stay empty**: open the menu-bar menu and check the Screen Recording / Microphone permission status. If not granted, use "Check permissions…" to jump to System Settings, grant Screen Recording (and Microphone if used), then quit and reopen Audicap.
+- **After updating to a new build**: because releases are ad-hoc signed, each one has a different signing identity, so a previously granted permission may stop working. Remove the old Audicap entry under System Settings → Privacy & Security → Screen Recording, reopen Audicap, and grant again.
+- **Repeated permission prompts**: Audicap stops retrying capture once it detects permission is missing (retrying would just reprompt indefinitely without succeeding, since macOS only applies a permission change on relaunch). Grant the permission, then relaunch the app.
+- **Logs**: the menu has a "Show log file" item. Logs are written to `~/Library/Logs/Audicap/audicap.log`.
 
 ## Build from source
 
@@ -101,6 +126,8 @@ To build your own distributable zip instead of installing locally, use `./releas
 | `tests/` | Unit tests for the language-hint and writing-system rules (run instructions at the top of each file) |
 | `bundle/Info.plist`, `AppIcon.icns` | Used to assemble the app bundle on first install |
 | `deploy.sh` | Build, sign, verify, install |
+| `release.sh` | Build an ad-hoc-signed distributable zip |
+| `LICENSE` | MIT license text |
 
 ## Design notes
 
