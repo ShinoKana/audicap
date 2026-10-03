@@ -161,6 +161,7 @@ final class AutoRefiner {
         guard Refiner.available else { onStatus?("whisper 不可用,自动精修跳过"); return }
         stopped = false; tape = t; lang = l; nextStart = 0; busy = false
         guard server == nil else { return }
+        reapStrays()
         let p = Process()
         p.executableURL = URL(fileURLWithPath: Refiner.server)
         p.arguments = ["-m", Refiner.model, "--host", "127.0.0.1", "--port", "\(port)", "-t", "4", "-sns"]
@@ -175,6 +176,34 @@ final class AutoRefiner {
         if busy { pendingStop = true; alog("autorefine: 等最后一块解完再关"); return }
         killServer()
     }
+    /// 收掉上次留下的 whisper-server。
+    ///
+    /// stop() 会 terminate,但 app 被强退或崩溃时它根本没机会跑 —— 子进程被托孤给
+    /// launchd,带着约 1.6GB 的模型常驻下去。更阴的是 whisper-server 开了 SO_REUSEPORT,
+    /// 同一端口能被多个进程同时 LISTEN,所以重复启动不会报「端口已占用」,只会静默叠加:
+    /// 崩一次多一个。实测在一台机器上堆到 5 个、合计 8.4GB、挂了 25 天,
+    /// 每个累计 CPU 仅约 1 分钟(纯加载模型),一次转写都没做过,把 16GB 的机器压进了 swap。
+    ///
+    /// 所以每次 start() 之前先收一遍尸,启动即自愈 —— 不指望上一次能干净退出。
+    private func reapStrays() {
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        // 按「可执行名 + 本实例的端口」匹配,不会碰到别人跑在 8910 等其他端口上的 server。
+        pgrep.arguments = ["-f", "whisper-server .*--port \(port)( |$)"]
+        let out = Pipe()
+        pgrep.standardOutput = out
+        pgrep.standardError = FileHandle.nullDevice
+        guard (try? pgrep.run()) != nil else { return }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        pgrep.waitUntilExit()
+        let me = ProcessInfo.processInfo.processIdentifier
+        for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
+            guard let pid = Int32(line.trimmingCharacters(in: .whitespaces)), pid != me else { continue }
+            kill(pid, SIGTERM)
+            alog("autorefine: 收掉上次残留的 whisper-server (pid \(pid))")
+        }
+    }
+
     private func killServer() {
         pendingStop = false
         server?.terminate(); server = nil
